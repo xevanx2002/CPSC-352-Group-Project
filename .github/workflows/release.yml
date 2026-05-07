@@ -1,0 +1,49 @@
+name: Build Signed Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    build-release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Get project files
+              uses: actions/checkout@v4
+
+            - name: Install compiler and GPG
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y mingw-w64 gnupg
+
+            - name: Build Hello_World.exe
+              run: |
+                x86_64-w64-mingw32-g++ Hello_World.cpp -o Hello_World.exe
+
+            - name: Create checksum file
+              run: |
+                sha256sum Hello_World.exe > SHA256SUMS
+
+            - name: Import private GPG key
+              run: |
+                echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+
+            - name: Sign the checksum file
+              run: |
+                gpg --batch --yes --armor --detach-sign \
+                    --pinentry-mode loopback \
+                    --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+                    SHA256SUMS
+
+            - name: Publish Github release
+              uses: softprops/action-gh-release@v2
+              with:
+                files: |
+                    Hello_World.exe
+                    SHA256SUMS
+                    SHA256SUMS.asc
